@@ -1,3 +1,7 @@
+## 0.1.3
+
+* Fix RangeError on second streamed message by clearing part identifiers between turns (#1)
+
 ## 0.1.2
 
 * Updated CHANGELOG.md to include version references for pub.dev compliance

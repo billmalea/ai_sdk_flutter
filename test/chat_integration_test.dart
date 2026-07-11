@@ -62,6 +62,42 @@ class MockChatTransport implements ChatTransport {
   }
 }
 
+/// Returns a complete text stream for every sendMessages call (multi-turn).
+class MultiTurnMockTransport implements ChatTransport {
+  int _callCount = 0;
+
+  @override
+  Stream<UIMessageChunk> sendMessages({
+    required String trigger,
+    required String chatId,
+    required List<UIMessage> messages,
+    String? messageId,
+    Map<String, String>? headers,
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? metadata,
+  }) async* {
+    _callCount++;
+    final messageIdForTurn = 'assistant-$_callCount';
+    yield StartChunk(messageId: messageIdForTurn);
+    yield const TextStartChunk(id: 'text-0');
+    yield TextDeltaChunk(delta: 'Reply $_callCount', id: 'text-0');
+    yield const TextEndChunk(id: 'text-0');
+    yield const FinishChunk(finishReason: 'stop');
+  }
+
+  @override
+  Future<Stream<UIMessageChunk>?> reconnectToStream({
+    required String chatId,
+    Map<String, String>? headers,
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? metadata,
+  }) async =>
+      null;
+
+  @override
+  Future<void> close() async {}
+}
+
 void main() {
   group('Chat Integration Tests', () {
     test('should send message and receive text response', () async {
@@ -285,6 +321,26 @@ void main() {
 
       expect(chat.messages.length, 2);
       expect(chat.status, ChatStatus.ready);
+    });
+
+    // Regression for https://github.com/billmalea/ai_sdk_flutter/issues/1
+    test('should not throw RangeError on second streamed message', () async {
+      final chat = Chat(
+        transport: MultiTurnMockTransport(),
+        options: const ChatOptions(id: 'test-chat'),
+      );
+
+      await chat.sendMessage('Message 1');
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(chat.status, ChatStatus.ready);
+      expect(chat.messages.length, 2);
+      expect((chat.messages[1].parts[0] as TextUIPart).text, 'Reply 1');
+
+      await chat.sendMessage('Message 2');
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(chat.status, ChatStatus.ready);
+      expect(chat.messages.length, 4);
+      expect((chat.messages[3].parts[0] as TextUIPart).text, 'Reply 2');
     });
   });
 }

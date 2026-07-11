@@ -222,6 +222,10 @@ class Chat {
   }
 
   void _handleStartChunk(StartChunk chunk) {
+    // Reset part index map for each new assistant message. Stale entries from a
+    // previous turn point into an empty parts list and cause RangeError (#1).
+    _partIdentifiers.clear();
+
     _currentStreamingMessage = UIMessage(
       id: chunk.messageId ?? IdGenerator.generateMessageId(),
       role: MessageRole.assistant,
@@ -440,6 +444,7 @@ class Chat {
   void _handleStreamComplete() {
     _streamSubscription = null;
     _currentStreamingMessage = null;
+    _partIdentifiers.clear();
     _updateStatus(ChatStatus.ready);
   }
 
@@ -449,6 +454,7 @@ class Chat {
     options.onError?.call(error);
     _streamSubscription = null;
     _currentStreamingMessage = null;
+    _partIdentifiers.clear();
   }
 
   void _addMessage(UIMessage message) {
